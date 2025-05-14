@@ -17,6 +17,14 @@ class DeBooxUpx:
                  IV: str):
         self.key: bytes = bytes.fromhex(KEY)
         self.iv: bytes = bytes.fromhex(IV)
+    def enUpxStream(self, inputFile, outputFile):
+        cipher = AES.new(self.key, AES.MODE_CFB, iv=self.iv, segment_size=128)
+        while True:
+            block = inputFile.read(self.blockSize)
+            if not block:
+                break
+            encrypted_block = cipher.encrypt(block)
+            outputFile.write(encrypted_block)
 
     def deUpxStream(self, inputFile, outputFile):
         block: bytes = b'1'
@@ -31,6 +39,13 @@ class DeBooxUpx:
                                      "please ensure that the strings or model is correct.")
                 header_checked = True
             outputFile.write(decrypted_block)
+
+    def enUpx(self, inputFileName: str, outputFileName: str):
+        inputFile = open(inputFileName, mode='rb', buffering=self.blockSize)
+        outputFile = open(outputFileName, mode='wb', buffering=self.blockSize)
+        self.enUpxStream(inputFile, outputFile)
+        inputFile.close()
+        outputFile.close()
 
     def deUpx(self, inputFileName: str, outputFileName: str):
         inputFile = open(inputFileName, mode='rb', buffering=self.blockSize)
@@ -56,23 +71,50 @@ def findKeyIv(path: str, name: str):
 if __name__ == '__main__':
     import sys
     import os.path
-    if 2 <= len(sys.argv) <= 4:
-        csvPath = os.path.join(os.path.split(sys.argv[0])[0], 'BooxKeys.csv')
-        device_name = sys.argv[1]
-        updateUpxPath = "update.upx" if len(sys.argv) == 2 else sys.argv[2]
-        if len(sys.argv) == 4:
-            decryptedPath = sys.argv[3]
-        else:
-            basename = os.path.basename(updateUpxPath)
-            name, ext = os.path.splitext(basename)
-            decryptedPath = name + '.zip' if ext == '.upx' else basename + '.zip'
-        row = findKeyIv(csvPath, device_name)
-        if row is None:
-            print(f'No model named "{device_name}" found')
-            sys.exit()
-        decrypter = DeBooxUpx(row[2], row[3])
-        decrypter.deUpx(updateUpxPath, decryptedPath)
-        print(f"Saved decrypted file to {decryptedPath}")
+
+    if len(sys.argv) < 3:
+        print('Usage:')
+        print('For decrypt: python DeBooxUpdate.py decrypt <device_name> [input.upx [output.zip]]')
+        print('For encrypt: python DeBooxUpdate.py encrypt <device_name> [input.zip [output.upx]]')
+        sys.exit()
+
+    mode = sys.argv[1].lower()
+    if mode not in ['decrypt', 'encrypt']:
+        print('Invalid mode. Use "decrypt" or "encrypt" as the first argument.')
+        sys.exit()
+    device_name = sys.argv[2]
+
+    # 处理输入输出路径
+    if mode == 'decrypt':
+        input_default = "update.upx"
+        output_default = "update.zip"
+        input_path = sys.argv[3] if len(sys.argv) >= 4 else input_default
+        output_path = sys.argv[4] if len(sys.argv) == 5 else None
+        if output_path is None:
+            name, ext = os.path.splitext(os.path.basename(input_path))
+            output_path = f"{name}.zip" if ext == ".upx" else f"{name}.zip"
+
+    else:  # encrypt
+        input_default = "update.zip"
+        output_default = "update.upx"
+        input_path = sys.argv[3] if len(sys.argv) >= 4 else input_default
+        output_path = sys.argv[4] if len(sys.argv) == 5 else None
+        if output_path is None:
+            name, ext = os.path.splitext(os.path.basename(input_path))
+            output_path = f"{name}.upx" if ext == ".zip" else f"{name}.upx"
+
+    # 获取密钥和IV
+    csvPath = os.path.join(os.path.split(sys.argv[0])[0], 'BooxKeys.csv')
+    row = findKeyIv(csvPath, device_name)
+    if row is None:
+        print(f'No model named "{device_name}" found')
+        sys.exit()
+
+    crypter = DeBooxUpx(row[2], row[3])
+
+    if mode == 'decrypt':
+        crypter.deUpx(input_path, output_path)
+        print(f"Decrypted to {output_path}")
     else:
-        print('Usage:\npython DeBooxUpdate.py <device name> [input file name [output file name]]')
-        print('For supported devices see BooxKeys.csv')
+        crypter.enUpx(input_path, output_path)
+        print(f"Encrypted to {output_path}")

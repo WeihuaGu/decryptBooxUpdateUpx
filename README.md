@@ -31,7 +31,9 @@ By default, `update.zip` (the decrypted update) will be generated in the current
 
 To run the application:
 ```bash
-python DeBooxUpx.py <device model> [input file name [output file name]]
+python3 DeBooxUpdate.py decrypt <device_name> [input] [output]
+python3 DeBooxUpdate.py encrypt <device_name> [input] [output]
+
 ```
 
 `<device model>` is required, and `[input file name [output file name]]` is optional. The input file will be `update.upx` and the output file will be saved in the current working directory, if not set in the arguments.
